@@ -52,7 +52,11 @@ jobs:
         run: dotnet build --graph --artifacts-path artifacts --configuration Release --no-restore
 
       - name: 打包
-        run: dotnet pack --graph --artifacts-path artifacts --configuration Release --no-restore --no-build --include-symbols
+        shell: pwsh
+        run: |-
+          Get-ChildItem src -Directory | ForEach-Object {
+            dotnet pack $PSItem --graph --artifacts-path artifacts --configuration Release --no-restore --no-build --include-symbols
+          }
 
       - name: 收集 Nuget 包
         uses: actions/upload-artifact@v6
