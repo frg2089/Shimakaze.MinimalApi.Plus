@@ -3,7 +3,12 @@
     <!-- Enable central package management, https://learn.microsoft.com/en-us/nuget/consume-packages/Central-Package-Management -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <GitVersionTargetFramework>net10.0</GitVersionTargetFramework>
+    <UseProjectNamespaceForGitVersionInformation>true</UseProjectNamespaceForGitVersionInformation>
   </PropertyGroup>
+  <ItemGroup>
+    <GlobalPackageReference Include="GitVersion.MsBuild" Version="6.5.1" />
+  </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="Humanizer.Core" Version="3.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
