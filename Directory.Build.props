@@ -5,4 +5,24 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+  <PropertyGroup>
+    <Authors>frg2089</Authors>
+    <Copyright>Copyright © 2025 - $([System.DateTime]::Now.ToString("yyyy")) $(Authors)</Copyright>
+    <PackageProjectUrl>https://github.com/frg2089/Shimakaze.MinimalApi.Plus</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/frg2089/Shimakaze.MinimalApi.Plus.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <GenerateDocumentationFile>True</GenerateDocumentationFile>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <IconPath Condition=" '$(IconPath)' == '' AND Exists('$(MSBuildProjectDirectory)\Assets\logo.png')">$(MSBuildProjectDirectory)\Assets\logo.png</IconPath>
+    <IconPath Condition=" '$(IconPath)' == '' AND Exists('$(MSBuildThisFileDirectory)\assets\logo.png')">$(MSBuildThisFileDirectory)\assets\logo.png</IconPath>
+    <PackageIcon Condition=" '$(IconPath)' != '' ">logo.png</PackageIcon>
+    <ReadmeFile Condition=" '$(ReadmeFile)' == '' AND Exists('$(MSBuildProjectDirectory)\ReadMe.md')">$(MSBuildProjectDirectory)\ReadMe.md</ReadmeFile>
+    <ReadmeFile Condition=" '$(ReadmeFile)' == '' AND Exists('$(MSBuildThisFileDirectory)\ReadMe.md')">$(MSBuildThisFileDirectory)\ReadMe.md</ReadmeFile>
+    <PackageReadmeFile Condition=" '$(ReadmeFile)' != '' ">ReadMe.md</PackageReadmeFile>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+  </PropertyGroup>
 </Project>
