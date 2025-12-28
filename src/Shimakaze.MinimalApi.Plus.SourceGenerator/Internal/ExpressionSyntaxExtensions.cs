@@ -16,7 +16,7 @@ internal static class ExpressionSyntaxExtensions
         public InvocationExpressionSyntax Invoke(SeparatedSyntaxList<ArgumentSyntax> arguments)
             => method.Invoke().WithArgumentList(ArgumentList(arguments));
 
-        public InvocationExpressionSyntax Invoke(params IEnumerable<ArgumentSyntax>? arguments)
+        public InvocationExpressionSyntax Invoke(IEnumerable<ArgumentSyntax> arguments)
         {
             var expr = method.Invoke();
 
@@ -35,7 +35,7 @@ internal static class ExpressionSyntaxExtensions
         public ExpressionSyntax InvokeAsync(SeparatedSyntaxList<ArgumentSyntax> arguments)
             => method.Invoke(arguments).Await();
 
-        public ExpressionSyntax InvokeAsync(params IEnumerable<ArgumentSyntax>? arguments)
+        public ExpressionSyntax InvokeAsync(IEnumerable<ArgumentSyntax> arguments)
             => method.Invoke(arguments).Await();
 
         public ExpressionSyntax InvokeAsync(ArgumentSyntax argument)
@@ -73,7 +73,7 @@ internal static class ExpressionSyntaxExtensions
                 .GetMember(methodName)
                 .Invoke(arguments);
 
-        public InvocationExpressionSyntax InvokeMethod(SimpleNameSyntax methodName, params IEnumerable<ArgumentSyntax>? arguments)
+        public InvocationExpressionSyntax InvokeMethod(SimpleNameSyntax methodName, IEnumerable<ArgumentSyntax> arguments)
             => type
                 .GetMember(methodName)
                 .Invoke(arguments);
@@ -82,6 +82,11 @@ internal static class ExpressionSyntaxExtensions
             => type
                 .GetMember(methodName)
                 .Invoke(argument);
+
+        public InvocationExpressionSyntax InvokeMethod(SimpleNameSyntax methodName)
+            => type
+                .GetMember(methodName)
+                .Invoke();
     }
 
     extension(LambdaExpressionSyntax lambda)
@@ -106,7 +111,7 @@ internal static class ExpressionSyntaxExtensions
         public GenericNameSyntax WithType(SeparatedSyntaxList<TypeSyntax> types)
             => generic.WithTypeArgumentList(TypeArgumentList(types));
 
-        public GenericNameSyntax WithType(params IEnumerable<TypeSyntax> types)
+        public GenericNameSyntax WithType(IEnumerable<TypeSyntax> types)
             => generic.WithType(types.AsSeparatedList());
 
         public GenericNameSyntax WithType(TypeSyntax type)

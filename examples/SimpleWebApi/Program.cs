@@ -1,6 +1,4 @@
-﻿using Shimakaze.MinimalApi.Plus;
-
-using SimpleWebApi;
+﻿using SimpleWebApi;
 
 var builder = WebApplication.CreateBuilder(args);
 

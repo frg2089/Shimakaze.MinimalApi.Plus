@@ -107,14 +107,16 @@ internal static class EndpointSyntaxFactory
             var invokeChain = route
                 .InvokeMethod(
                     MapMethods,
-                    Argument(endpoint.Key),
-                    Argument(
-                        CollectionExpression(
-                            endpoint
-                                .Value
-                                .Select(ExpressionElement)
-                                .AsSeparatedList<CollectionElementSyntax>())),
-                    Argument(lambda))
+                    [
+                        Argument(endpoint.Key),
+                        Argument(
+                            CollectionExpression(
+                                endpoint
+                                    .Value
+                                    .Select(ExpressionElement)
+                                    .AsSeparatedList<CollectionElementSyntax>())),
+                        Argument(lambda),
+                    ])
                 .InvokeMethod(
                     WithMetadata,
                     Argument(MethodInfoInstance));
@@ -348,8 +350,10 @@ internal static class EndpointSyntaxFactory
             .ArgumentNullException
             .InvokeMethod(
                 ThrowIfNull,
-                Argument(parameter),
-                Argument(parameterName));
+                [
+                    Argument(parameter),
+                    Argument(parameterName),
+                ]);
 
         return ExpressionStatement(expr);
     }
