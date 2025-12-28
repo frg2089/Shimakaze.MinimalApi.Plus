@@ -12,7 +12,9 @@ on:
       - global.json
       - nuget.config
       - Directory.Build.props
+      - Directory.Build.targets
       - Directory.Packages.props
+      - GitVersion.yaml
       - Shimakaze.MinimalApi.Plus.slnx
       - 'src/**/*'
   pull_request:
@@ -24,7 +26,9 @@ on:
       - global.json
       - nuget.config
       - Directory.Build.props
+      - Directory.Build.targets
       - Directory.Packages.props
+      - GitVersion.yaml
       - Shimakaze.MinimalApi.Plus.slnx
       - 'src/**/*'
 
