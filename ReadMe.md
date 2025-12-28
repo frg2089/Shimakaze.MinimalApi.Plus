@@ -2,6 +2,11 @@
 
 一个用于简化 .NET Minimal API 开发的工具库，通过 Source Generator 提供更优雅的 API 端点定义方式。
 
+||
+|:-|
+|[![Shimakaze.MinimalApi.Plus](https://img.shields.io/nuget/v/Shimakaze.MinimalApi.Plus?label=Shimakaze.MinimalApi.Plus)](https://www.nuget.org/packages/Shimakaze.MinimalApi.Plus)|
+|[![Shimakaze.MinimalApi.Plus.SourceGenerator](https://img.shields.io/nuget/v/Shimakaze.MinimalApi.Plus.SourceGenerator?label=Shimakaze.MinimalApi.Plus.SourceGenerator)](https://www.nuget.org/packages/Shimakaze.MinimalApi.Plus.SourceGenerator)|
+
 ## 特性
 
 - 基于 Source Generator 的编译时代码生成
