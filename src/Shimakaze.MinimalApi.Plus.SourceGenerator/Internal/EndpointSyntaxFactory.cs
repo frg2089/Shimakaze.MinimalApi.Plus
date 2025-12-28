@@ -2,73 +2,53 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-using Shimakaze.MinimalApi.Plus.SourceGenerator.Internal;
 using Shimakaze.MinimalApi.Plus.SourceGenerator.Metadata;
 
 using static Microsoft.CodeAnalysis.CSharp.SyntaxFactory;
+using static Shimakaze.MinimalApi.Plus.SourceGenerator.Internal.Constants;
 
 namespace Shimakaze.MinimalApi.Plus.SourceGenerator.Internal;
 
 internal static class EndpointSyntaxFactory
 {
-    public static IEnumerable<StatementSyntax> GenerateCode(this EndpointMethodInfo endpointInfo, ExpressionSyntax route)
+    public static IEnumerable<StatementSyntax> GenerateCode(this EndpointsMetadata metadata, ExpressionSyntax route)
     {
-        SyntaxTrivia comment = Comment($"// {endpointInfo.ContainingNamespace}.{endpointInfo.ContainingTypeName}.{endpointInfo.MethodName}");
+        List<StatementSyntax> debugChecks = new(metadata.Parameters.Length);
+        List<StatementSyntax> nullableChecks = new(metadata.Parameters.Length);
 
-        IdentifierNameSyntax method = IdentifierName(endpointInfo.MethodName);
+        var defines = new StatementSyntax[metadata.Parameters.Length];
 
-        TypeSyntax thisType = ParseTypeName($"{endpointInfo.ContainingNamespace}.{endpointInfo.ContainingTypeName}");
-        TypeOfExpressionSyntax typeOfThisType = TypeOfExpression(thisType);
-
-        List<StatementSyntax> debugChecks = new(endpointInfo.Parameters.Count);
-        List<StatementSyntax> nullableChecks = new(endpointInfo.Parameters.Count);
-
-        SyntaxToken[] parameterTokens = new SyntaxToken[endpointInfo.Parameters.Count];
-        IdentifierNameSyntax[] parameters = new IdentifierNameSyntax[endpointInfo.Parameters.Count];
-        ExpressionSyntax[] parameterNames = new ExpressionSyntax[endpointInfo.Parameters.Count];
-        TypeSyntax[] parameterTypes = new TypeSyntax[endpointInfo.Parameters.Count];
-        StatementSyntax[] defines = new StatementSyntax[endpointInfo.Parameters.Count];
-
-        SyntaxToken thisInstanceToken = Identifier("__this_instance");
-        IdentifierNameSyntax thisInstance = IdentifierName(thisInstanceToken);
-
-        SyntaxToken returnValueToken = Identifier("__return_value");
-        IdentifierNameSyntax returnValue = IdentifierName(returnValueToken);
-
-        for (int i = 0; i < endpointInfo.Parameters.Count; i++)
+        for (int i = 0; i < metadata.Parameters.Length; i++)
         {
-            IParameterSymbol symbol = endpointInfo.Parameters[i];
-            ITypeSymbol typeSymbol = symbol.Type;
-            parameterTokens[i] = Identifier($"__parameter_{symbol.Name}");
-            parameters[i] = IdentifierName(parameterTokens[i]);
-            parameterNames[i] = Literal(symbol.Name).AsString();
-            parameterTypes[i] = ParseTypeName(typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            var parameter = metadata.Parameters[i];
 
-            TypeSyntax type = parameterTypes[i];
+            var type = parameter.Type;
 
-            if (symbol.NullableAnnotation is NullableAnnotation.NotAnnotated && symbol.Type.BaseType?.SpecialType is not SpecialType.System_ValueType)
+            if (parameter.Nullable is NullableAnnotation.NotAnnotated && !parameter.IsValueType)
             {
-                debugChecks.Add(DebugAssertIsNotNull(parameters[i]));
-                nullableChecks.Add(RuntimeAssertIsNotNull(parameters[i], parameterNames[i]));
+                debugChecks.Add(DebugAssertIsNotNull(parameter.Identifier));
+                nullableChecks.Add(RuntimeAssertIsNotNull(parameter.Identifier, parameter.NameOf));
             }
 
-            if (symbol.NullableAnnotation is NullableAnnotation.Annotated)
+            if (parameter.Nullable is NullableAnnotation.Annotated)
                 type = type.Nullable();
 
-            defines[i] = symbol
-                .GetInstance(type, parameterNames[i])
-                .Variable(parameterTokens[i], type)
+            defines[i] = GetInstance(parameter, type, parameter.NameOf)
+                .Variable(parameter.Token, type)
                 .AsStatement();
         }
 
-        ExpressionSyntax getMethodInfo = typeOfThisType.InvokeMethod(
-            IdentifierName("GetMethod"),
+        var getMethodInfo = metadata.TypeOfType.InvokeMethod(
+            GetMethod,
             GetMethodArguments(
-                Literal(endpointInfo.MethodName).AsString(),
-                parameterTypes.Select(TypeOfExpression)))
-            .NotNullAssert();
+                metadata.NameOfMethod,
+                metadata.Parameters.Select(i => i.Type).Select(TypeOfExpression)))
+            .NotNullAssert()
+            .Variable(MethodInfoInstanceToken)
+            .AsStatement()
+            .WithLeadingTrivia(metadata.Comment);
 
-        foreach (IGrouping<string, string>? endpoint in endpointInfo.EndPoints.GroupBy(i => i.Template, i => i.Method))
+        foreach (var endpoint in metadata.EndPoints)
         {
             List<StatementSyntax> body = [
                 ..defines,
@@ -77,92 +57,115 @@ internal static class EndpointSyntaxFactory
             ];
 
             // global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<T>(, context);
-            if (!endpointInfo.IsStatic)
+            if (!metadata.IsStatic)
             {
-                ExpressionSyntax createInstanceExpr = TypeSyntaxes
+                ExpressionSyntax createInstanceExpr = Types
                     .ActivatorUtilities
                     .InvokeMethod(
-                        Identifier("CreateInstance").AsGeneric(thisType),
+                        CreateInstance.WithType(metadata.Type),
                         Argument(HttpContext.RequestServices));
 
-                if (endpointInfo.IsEndpoints)
+                if (metadata.TypeIsEndpoints)
                     createInstanceExpr = createInstanceExpr
-                        .InvokeMethod(IdentifierName("SetContext"), Argument(HttpContext.Name));
+                        .InvokeMethod(SetContext, Argument(HttpContextInstance));
 
                 body.Add(createInstanceExpr
-                    .Variable(thisInstanceToken)
+                    .Variable(ThisInstanceToken)
                     .AsStatement());
             }
 
-            ExpressionSyntax call = endpointInfo.IsStatic
-                ? thisType
-                : thisInstance;
+            ExpressionSyntax call = metadata.IsStatic
+                ? metadata.Type
+                : ThisInstance;
 
-            call = call.InvokeMethod(method, parameters.Select(Argument));
-            if (endpointInfo.IsAsync)
+            call = call.InvokeMethod(metadata.Name, metadata.Parameters.Select(i => i.Identifier).Select(Argument));
+            if (metadata.IsAsync)
                 call = call.Await();
 
-            StatementSyntax node = endpointInfo.IsVoid
+            var node = metadata.IsVoid
                 ? call.AsStatement()
-                : call.Variable(returnValueToken).AsStatement();
+                : call.Variable(ReturnValueInstanceToken).AsStatement();
 
             body.Add(node);
 
-            if (!endpointInfo.IsVoid)
+            if (!metadata.IsVoid)
                 body.Add(GetResult(
-                    returnValue,
-                    endpointInfo.IsIResult)
+                    ReturnValueInstance,
+                    metadata.IsIResult)
                     .InvokeMethod(
-                        IdentifierName("ExecuteAsync"),
-                        Argument(HttpContext.Name))
+                        ExecuteAsync,
+                        Argument(HttpContextInstance))
                     .Await()
                     .AsStatement());
 
-            LambdaExpressionSyntax lambda =
+            var lambda =
                 SimpleLambdaExpression(
-                    Parameter(HttpContext.Token),
+                    Parameter(HttpContextInstanceToken),
                     Block(body.AsSeparatedList()))
                 .WithAsync();
 
-            InvocationExpressionSyntax invokeChain = route
+            var invokeChain = route
                 .InvokeMethod(
-                    IdentifierName("MapMethods"),
-                    Argument(
-                        Literal(endpointInfo.CombineTemplate(endpoint.Key)).AsString())!,
+                    MapMethods,
+                    Argument(endpoint.Key),
                     Argument(
                         CollectionExpression(
                             endpoint
-                                .Select(IdentifierName)
-                                .Select(TypeSyntaxes.HttpMethodsType.GetMember)
+                                .Value
                                 .Select(ExpressionElement)
-                                .AsSeparatedList<CollectionElementSyntax>()))!,
-                    Argument(lambda)!)
+                                .AsSeparatedList<CollectionElementSyntax>())),
+                    Argument(lambda))
                 .InvokeMethod(
-                    IdentifierName("WithMetadata"),
-                    Argument(getMethodInfo));
+                    WithMetadata,
+                    Argument(MethodInfoInstance));
 
-            if (endpointInfo.Summary is { Length: not 0 })
-            {
-                invokeChain = invokeChain
-                    .InvokeMethod(
-                        IdentifierName("WithSummary"),
-                        Argument(
-                            Literal(endpointInfo.Summary)
-                                .AsString()));
-            }
-            if (endpointInfo.Remarks is { Length: not 0 })
-            {
-                invokeChain = invokeChain
-                    .InvokeMethod(
-                        IdentifierName("WithDescription"),
-                        Argument(
-                            Literal(endpointInfo.Remarks)
-                                .AsString()));
-            }
+            if (metadata.Summary is not null)
+                invokeChain = invokeChain.InvokeMethod(WithSummary, Argument(metadata.Summary));
+
+            if (metadata.Remarks is not null)
+                invokeChain = invokeChain.InvokeMethod(WithDescription, Argument(metadata.Remarks));
+
+            if (metadata.ValidateAntiForgeryToken is true)
+                invokeChain = invokeChain.InvokeMethod(RequireAntiforgery);
+
+            if (metadata.IgnoreAntiforgeryToken is true)
+                invokeChain = invokeChain.InvokeMethod(DisableAntiforgery);
+
+            if (metadata.ExcludeFromDescription is true)
+                invokeChain = invokeChain.InvokeMethod(ExcludeFromDescription);
+
+            if (metadata.DisableHttpMetrics is true)
+                invokeChain = invokeChain.InvokeMethod(DisableHttpMetrics);
+
+            if (metadata.EndpointName is not null)
+                invokeChain = invokeChain.InvokeMethod(WithName, Argument(metadata.EndpointName));
+
+            if (metadata.GroupName is not null)
+                invokeChain = invokeChain.InvokeMethod(WithGroupName, Argument(metadata.GroupName));
+
+            if (metadata.Tags is not null)
+                invokeChain = invokeChain.InvokeMethod(WithTags, metadata.Tags.Value.Select(Argument));
+
+            if (metadata.Hosts is not null)
+                invokeChain = invokeChain.InvokeMethod(RequireHost, metadata.Hosts.Value.Select(Argument));
+
+            if (metadata.Authorize is true)
+                invokeChain = invokeChain.InvokeMethod(
+                    RequireAuthorization,
+                    Argument(
+                        MethodInfoInstance
+                            .InvokeMethod(GetCustomAttributes.WithType(Types.Authorize))
+                            .InvokeMethod(ToArray)));
+
+            if (metadata.AllowAnonymous is true)
+                invokeChain = invokeChain.InvokeMethod(AllowAnonymous);
 
             yield return
-               ExpressionStatement(invokeChain)
-               .WithLeadingTrivia(comment);
+               Block(
+                   List([
+                       getMethodInfo,
+                       ExpressionStatement(invokeChain),
+                   ]));
         }
     }
 
@@ -177,65 +180,21 @@ internal static class EndpointSyntaxFactory
                         .AsSeparatedList<CollectionElementSyntax>()));
     }
 
-    private static ExpressionSyntax GetInstance(this IParameterSymbol parameter, TypeSyntax type, ExpressionSyntax name)
+    public static ExpressionSyntax GetResult(ExpressionSyntax result, bool isIResult)
     {
-        ITypeSymbol parameterType = parameter.Type;
-        IEnumerable<ExpressionSyntax> fromCodes = ParseFromRequest(parameter, type, name);
+        if (isIResult)
+            return result;
 
-        if (fromCodes.Any())
-            return fromCodes.Aggregate((a, b) => a.Coalesce(b));
-        if (parameterType.IsType(KnownTypes.HttpContext))
-            return HttpContext.Name;
-        if (parameterType.IsType(KnownTypes.CancellationToken))
-            return HttpContext.RequestAborted;
-        if (parameterType.IsType(KnownTypes.HttpRequest))
-            return HttpContext.Request;
-        if (parameterType.IsType(KnownTypes.HttpResponse))
-            return HttpContext.Response;
-        if (parameterType.IsType(KnownTypes.ConnectionInfo))
-            return HttpContext.Connection;
-        if (parameterType.IsType(KnownTypes.WebSocketManager))
-            return HttpContext.WebSockets;
-        if (parameterType.IsType(KnownTypes.ClaimsPrincipal))
-            return HttpContext.User;
-        if (parameterType.IsType(KnownTypes.IServiceProvider))
-            return HttpContext.RequestServices;
-        if (parameterType.IsType(KnownTypes.ISession))
-            return HttpContext.Session;
-
-        TypeSyntax? itemType = null;
-        if (parameterType.AllInterfaces.FirstOrDefault(i => i.SpecialType is SpecialType.System_Collections_Generic_IEnumerator_T) is { } enumerable)
-            itemType = ParseTypeName(enumerable.TypeArguments.First().ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-
-        if (parameter.GetAttribute(KnownAttributeTypes.FromKeyedServices) is { } fromKeyedServices)
-        {
-            ExpressionSyntax key = ParseExpression(fromKeyedServices.ConstructorArguments.FirstOrDefault().ToCSharpString());
-
-            if (itemType is not null)
-                return HttpContext.RequestServices.GetKeyedServices(itemType, key);
-
-            if (type is NullableTypeSyntax)
-                return HttpContext.RequestServices.GetKeyedService(type, key);
-
-            return HttpContext.RequestServices.GetRequiredKeyedService(type, key);
-        }
-        // if (parameter.GetAttribute(Attributes.FromServices) is not { } fromServices)
-        if (itemType is not null)
-            return HttpContext.RequestServices.GetServices(itemType);
-
-        if (type is NullableTypeSyntax)
-            return HttpContext.RequestServices.GetService(type);
-
-        return HttpContext.RequestServices.GetRequiredService(type);
+        return Types
+            .TypedResults
+            .InvokeMethod(
+                Ok,
+                Argument(result));
     }
 
-    private static ExpressionSyntax FromRequestSimple(SimpleNameSyntax member, AttributeData attribute, TypeSyntax parameterType, bool isCollection, ExpressionSyntax name)
+    private static ExpressionSyntax FromRequestSimple(SimpleNameSyntax member, TypeSyntax parameterType, bool isCollection, ExpressionSyntax name)
     {
-        string parameterName = attribute.NamedArguments.FirstOrDefault(i => i.Key is "Name").Value.ToCSharpString();
-        if (parameterName is not "null")
-            name = ParseExpression(parameterName);
-
-        ExpressionSyntax value = HttpContext.Request.GetMember(member);
+        var value = HttpContext.Request.GetMember(member);
         value =
             ElementAccessExpression(value)
             .WithArgumentList(
@@ -243,16 +202,16 @@ internal static class EndpointSyntaxFactory
                     SingletonSeparatedList(
                         Argument(name))));
 
-        GenericNameSyntax method = isCollection
-            ? GenericName("ConvertEnumerableTo")
-            : GenericName("ConvertTo");
+        var method = isCollection
+            ? ConvertEnumerableTo
+            : ConvertTo;
 
         method = method
             .WithTypeArgumentList(
                 TypeArgumentList(
                     SingletonSeparatedList(parameterType)));
 
-        ExpressionSyntax expr = TypeSyntaxes.EndpointsHelper
+        var expr = Types.EndpointsHelper
             .GetMember(method);
 
         expr = expr
@@ -270,14 +229,14 @@ internal static class EndpointSyntaxFactory
         return expr;
     }
 
-    private static IEnumerable<ExpressionSyntax> ParseFromRequest(IParameterSymbol parameterSymbol, TypeSyntax type, ExpressionSyntax name)
+    private static IEnumerable<ExpressionSyntax> ParseFromRequest(ParameterMetadata parameter, TypeSyntax type, ExpressionSyntax name)
     {
-        if (parameterSymbol.GetAttribute(KnownAttributeTypes.FromBody) is { } fromBody)
+        if (parameter.IsFromBody)
         {
-            ExpressionSyntax expr = HttpContext.Request
+            var expr = HttpContext.Request
                 .InvokeMethod(
-                    Identifier("ReadFromJsonAsync")
-                        .AsGeneric(type),
+                   ReadFromJsonAsync
+                        .WithType(type),
                     Argument(
                         HttpContext.RequestAborted))
                 .Await()
@@ -287,71 +246,82 @@ internal static class EndpointSyntaxFactory
 
             yield return expr;
         }
-        if (parameterSymbol.GetAttribute(KnownAttributeTypes.FromRoute) is { } fromRoute)
-        {
+        if (parameter.IsFromRoute)
             yield return FromRequestSimple(
-                IdentifierName("RouteValues"),
-                fromRoute,
+                RouteValues,
                 type,
                 false,
-                name);
-        }
-        if (parameterSymbol.GetAttribute(KnownAttributeTypes.FromForm) is { } fromForm)
-        {
-            TypeSyntax? itemType = GetCollectionItemType(parameterSymbol);
+                parameter.FromRoute ?? name);
+
+        if (parameter.IsFromForm)
             yield return FromRequestSimple(
-                IdentifierName("Form"),
-                fromForm,
-                itemType ?? type,
-                itemType is not null,
-                name);
-        }
-        if (parameterSymbol.GetAttribute(KnownAttributeTypes.FromHeader) is { } fromHeader)
-        {
-            TypeSyntax? itemType = GetCollectionItemType(parameterSymbol);
+                Form,
+                parameter.ItemType ?? type,
+                parameter.IsCollection,
+                parameter.FromRoute ?? name);
+
+        if (parameter.IsFromHeader)
             yield return FromRequestSimple(
-                IdentifierName("Headers"),
-                fromHeader,
-                itemType ?? type,
-                itemType is not null,
-                name);
-        }
-        if (parameterSymbol.GetAttribute(KnownAttributeTypes.FromQuery) is { } fromQuery)
-        {
-            TypeSyntax? itemType = GetCollectionItemType(parameterSymbol);
+                Headers,
+                parameter.ItemType ?? type,
+                parameter.IsCollection,
+                parameter.FromRoute ?? name);
+
+        if (parameter.IsFromQuery)
             yield return FromRequestSimple(
-                IdentifierName("Query"),
-                fromQuery,
-                itemType ?? type,
-                itemType is not null,
-                name);
-        }
+                Query,
+                parameter.ItemType ?? type,
+                parameter.IsCollection,
+                parameter.FromRoute ?? name);
     }
 
-    private static TypeSyntax? GetCollectionItemType(IParameterSymbol parameter)
+    private static ExpressionSyntax GetInstance(ParameterMetadata parameter, TypeSyntax type, ExpressionSyntax name)
     {
-        if (parameter.Type is not INamedTypeSymbol { SpecialType: SpecialType.System_Collections_Generic_IEnumerable_T } symbol)
-            return null;
+        var fromCodes = ParseFromRequest(parameter, type, name);
 
-        ITypeSymbol typeSymbol = symbol.TypeArguments.First();
+        if (fromCodes.Any())
+            return fromCodes.Aggregate((a, b) => a.Coalesce(b));
 
-        TypeSyntax type = ParseTypeName(typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
-        if (type is not NullableTypeSyntax)
-            type = NullableType(type);
+        switch (parameter.TypeFullName)
+        {
+            case KnownTypes.HttpContext:
+                return HttpContextInstance;
+            case KnownTypes.CancellationToken:
+                return HttpContext.RequestAborted;
+            case KnownTypes.HttpRequest:
+                return HttpContext.Request;
+            case KnownTypes.HttpResponse:
+                return HttpContext.Response;
+            case KnownTypes.ConnectionInfo:
+                return HttpContext.Connection;
+            case KnownTypes.WebSocketManager:
+                return HttpContext.WebSockets;
+            case KnownTypes.ClaimsPrincipal:
+                return HttpContext.User;
+            case KnownTypes.IServiceProvider:
+                return HttpContext.RequestServices;
+            case KnownTypes.ISession:
+                return HttpContext.Session;
+        }
 
-        return type;
-    }
+        if (parameter.IsFromKeyedServices)
+        {
+            if (parameter.IsCollection)
+                return HttpContext.RequestServices.GetKeyedServices(parameter.ItemType, parameter.FromKeyedServices);
 
-    public static ExpressionSyntax GetResult(ExpressionSyntax result, bool isIResult)
-    {
-        if (isIResult)
-            return result;
+            if (type is NullableTypeSyntax)
+                return HttpContext.RequestServices.GetKeyedService(type, parameter.FromKeyedServices);
 
-        return TypeSyntaxes
-            .TypedResults
-            .InvokeMethod(
-                IdentifierName("Ok"),
-                Argument(result));
+            return HttpContext.RequestServices.GetRequiredKeyedService(type, parameter.FromKeyedServices);
+        }
+        // if (parameter.GetAttribute(Attributes.FromServices) is not { } fromServices)
+        if (parameter.IsCollection)
+            return HttpContext.RequestServices.GetServices(parameter.ItemType);
+
+        if (type is NullableTypeSyntax)
+            return HttpContext.RequestServices.GetService(type);
+
+        return HttpContext.RequestServices.GetRequiredService(type);
     }
 
     public static StatementSyntax DebugAssertIsNotNull(ExpressionSyntax obj)
@@ -364,9 +334,9 @@ internal static class EndpointSyntaxFactory
                 .WithLeadingTrivia(Space))
             .WithLeadingTrivia(Space));
 
-        expr = TypeSyntaxes.Debug
+        expr = Types.Debug
             .InvokeMethod(
-                IdentifierName("Assert"),
+                Assert,
                 Argument(expr));
 
         return ExpressionStatement(expr);
@@ -374,12 +344,12 @@ internal static class EndpointSyntaxFactory
 
     public static StatementSyntax RuntimeAssertIsNotNull(ExpressionSyntax parameter, ExpressionSyntax parameterName)
     {
-        InvocationExpressionSyntax expr = TypeSyntaxes
+        var expr = Types
             .ArgumentNullException
             .InvokeMethod(
-                IdentifierName("ThrowIfNull"),
-                Argument(parameter)!,
-                Argument(parameterName)!);
+                ThrowIfNull,
+                Argument(parameter),
+                Argument(parameterName));
 
         return ExpressionStatement(expr);
     }

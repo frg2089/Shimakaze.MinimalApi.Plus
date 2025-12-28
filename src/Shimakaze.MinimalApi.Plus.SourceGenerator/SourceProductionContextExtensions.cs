@@ -8,7 +8,7 @@ internal static class SourceProductionContextExtensions
     {
         public void Report(DiagnosticDescriptor descriptor, ISymbol symbol, params object?[]? messageArgs)
         {
-            foreach (Diagnostic? diagnostic in symbol.Locations.Select(location => Diagnostic.Create(descriptor, location, messageArgs)))
+            foreach (var diagnostic in symbol.Locations.Select(location => Diagnostic.Create(descriptor, location, messageArgs)))
                 context.ReportDiagnostic(diagnostic);
         }
     }

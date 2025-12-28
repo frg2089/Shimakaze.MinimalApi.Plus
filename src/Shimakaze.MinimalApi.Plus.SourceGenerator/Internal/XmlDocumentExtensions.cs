@@ -16,7 +16,7 @@ internal static class XmlDocumentExtensions
 
         public string GetDocumentTagText(string tagName)
         {
-            IEnumerable<string> enumerable = document
+            var enumerable = document
                 .GetElementsByTagName(tagName)
                 .OfType<XmlElement>()
                 .Select(i => i.InnerText.Trim());

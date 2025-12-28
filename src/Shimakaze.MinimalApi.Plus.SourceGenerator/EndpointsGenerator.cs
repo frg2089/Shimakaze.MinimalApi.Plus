@@ -5,6 +5,7 @@ using Humanizer;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 using Shimakaze.MinimalApi.Plus.SourceGenerator.Internal;
 using Shimakaze.MinimalApi.Plus.SourceGenerator.Metadata;
@@ -23,18 +24,29 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
                 KnownTypes.ApiEndpointsAttribute[8..],
                 (node, _) => node is not null,
                 (context, _) => context.TargetSymbol as INamedTypeSymbol)
-            .Collect(),
+            .Collect()
+            .Combine(context
+                .AnalyzerConfigOptionsProvider
+                .Select((c, _) => c.GlobalOptions)),
             Generate);
     }
-    private static void Generate(SourceProductionContext context, ImmutableArray<INamedTypeSymbol?> data)
+    private static void Generate(SourceProductionContext context, (ImmutableArray<INamedTypeSymbol?> Symbols, AnalyzerConfigOptions Options) data)
     {
-        IEnumerable<INamedTypeSymbol> types = data
+        var options = data.Options;
+
+        if (!options.TryGetValue("build_property.RootNamespace", out var @namespace))
+            @namespace = KnownTypes.CommonNamespace[8..];
+
+        var controllers = data
+            .Symbols
             .OfType<INamedTypeSymbol>()
             .Where(i =>
             {
                 switch (i)
                 {
                     case { TypeKind: TypeKind.Class, IsAbstract: false, IsGenericType: false }:
+                        if (i.GetAttribute(KnownAttributeTypes.NonController) is not null)
+                            return false;
                         return true;
                     case { IsGenericType: true }:
                         context.Report(DiagnosticDescriptors.API0002, i, i!);
@@ -46,97 +58,81 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
                         context.Report(DiagnosticDescriptors.API0001, i, i!, i.TypeKind);
                         return false;
                 }
-            });
+            })
+            .Select(i => new ControllerMetadata(i));
 
-        SyntaxToken route = Identifier("route");
-        IdentifierNameSyntax routeName = IdentifierName(route);
-        SyntaxToken serviceToken = Identifier("service");
-        IdentifierNameSyntax service = IdentifierName(serviceToken);
-        SyntaxToken addScopedToken = Identifier("AddScoped");
-
-        MethodDeclarationSyntax registry = MethodDeclaration(
-            TypeSyntaxes.IServiceCollection,
-            Identifier("AddEndpoints"))
-            .WithParameterList(
-            ParameterList(
-                Parameter(serviceToken)
-                    .WithType(TypeSyntaxes.IServiceCollection)
-                    .WithModifiers(
-                        TokenList(
-                            SyntaxKind.ThisKeyword.Token))
-                    .AsSingleton()))
-            .WithBody(
-                Block(
-                    types
-                        .Where(i => !i.IsStatic)
-                        .Select(type => service
-                            .InvokeMethod(addScopedToken.AsGeneric(ParseTypeName(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))))
-                            .AsStatement())
-                        .Concat([ReturnStatement(service)])
-                        .AsSeparatedList()))
-            .WithModifiers(
-                TokenList(
-                    SyntaxKind.PublicKeyword.Token,
-                    SyntaxKind.StaticKeyword.Token));
-
-        IEnumerable<MethodDeclarationSyntax> endpoints = types
-            .SelectMany(type => type
-                .GetMembers()
-                .OfType<IMethodSymbol>()
-                .Select(EndpointMethodInfo.Generate(i => i.Kebaberize())))
-            .SelectMany(i => i.GenerateCode(routeName).Select(j => (i.Group, Code: j)))
-            .GroupBy(i => i.Group, i => i.Code)
-            .Select(group =>
-                MethodDeclaration(
-                    PredefinedType(
-                        SyntaxKind.VoidKeyword.Token),
-                    Identifier($"Map{group.Key}Endpoints"))
-                .WithParameterList(
-                    ParameterList(
-                        Parameter(route)
-                            .WithType(TypeSyntaxes.IEndpointRouteBuilder)
-                            .WithModifiers(
-                                TokenList(
-                                    SyntaxKind.ThisKeyword.Token))
-                            .AsSingleton()))
-                .WithBody(Block(group.AsSeparatedList()))
-                .WithModifiers(
-                    TokenList(
-                        SyntaxKind.PublicKeyword.Token,
-                        SyntaxKind.StaticKeyword.Token))
-            );
-
-        CompilationUnitSyntax code = CompilationUnit()
+        var code = CompilationUnit()
+            .WithUsings(
+                List([
+                    UsingDirective(IdentifierName("System")),
+                    UsingDirective(IdentifierName("System.Linq")),
+                    UsingDirective(IdentifierName("System.Reflection")),
+                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Builder")),
+                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Hosting")),
+                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Http")),
+                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Routing")),
+                    UsingDirective(IdentifierName("Microsoft.Extensions.DependencyInjection")),
+                    UsingDirective(IdentifierName(KnownTypes.CommonNamespace[8..])),
+                    ]))
+            .WithMembers(
+                SingletonList<MemberDeclarationSyntax>(
+                    FileScopedNamespaceDeclaration(IdentifierName(@namespace))
+                    .WithMembers(
+                        List<MemberDeclarationSyntax>([
+                            ClassDeclaration(Constants.GeneratedEndpointsToken)
+                                .WithMembers(
+                                    List<MemberDeclarationSyntax>([
+                                        MethodDeclaration(
+                                            Types.IServiceCollection,
+                                            Constants.AddEndpointsToken)
+                                            .WithParameterList(
+                                            ParameterList(
+                                                Parameter(Constants.IServiceCollectionInstanceToken)
+                                                    .WithType(Types.IServiceCollection)
+                                                    .WithModifiers(TokenList(SyntaxKind.ThisKeyword.Token))
+                                                    .AsSingleton()))
+                                            .WithBody(
+                                                Block(controllers
+                                                    .Where(i => !i.IsStatic)
+                                                    .Select(type => Constants.IServiceCollectionInstance.InvokeMethod(Constants.AddScoped.WithType(type.Type)).AsStatement())
+                                                    .Concat([ReturnStatement(Constants.IServiceCollectionInstance)])
+                                                    .AsSeparatedList()))
+                                            .WithModifiers(
+                                                TokenList(
+                                                    SyntaxKind.PublicKeyword.Token,
+                                                    SyntaxKind.StaticKeyword.Token)),
+                                        MethodDeclaration(
+                                            PredefinedType(SyntaxKind.VoidKeyword.Token),
+                                            Constants.MapEndpointsToken)
+                                            .WithParameterList(
+                                                ParameterList(Parameter(Constants.IEndpointRouteBuilderInstanceToken)
+                                                    .WithType(Types.IEndpointRouteBuilder)
+                                                    .WithModifiers(TokenList(SyntaxKind.ThisKeyword.Token))
+                                                    .AsSingleton()))
+                                            .WithBody(
+                                                Block(controllers
+                                                    .SelectMany(i => i.Actions)
+                                                    .Select(i => EndpointsMetadata.Create(i, i => i.Kebaberize()))
+                                                    .SelectMany(i => i.GenerateCode(Constants.IEndpointRouteBuilderInstance))
+                                                    .AsSeparatedList()))
+                                            .WithModifiers(
+                                                TokenList(
+                                                    SyntaxKind.PublicKeyword.Token,
+                                                    SyntaxKind.StaticKeyword.Token)),
+                                    ]))
+                                .WithModifiers(
+                                    TokenList(
+                                        SyntaxKind.InternalKeyword.Token,
+                                        SyntaxKind.StaticKeyword.Token,
+                                        SyntaxKind.PartialKeyword.Token))
+                                    ]))))
             .WithLeadingTrivia(
                 TriviaList(
                     Comment($"// Generated by {typeof(EndpointsGenerator).FullName}"),
                     Comment($"//      ❤️ from frg2089"),
                     Trivia(
                         NullableDirectiveTrivia(SyntaxKind.EnableKeyword.Token, true))
-                    ))
-            .WithUsings(
-                List([
-                    UsingDirective(IdentifierName("System")),
-                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Builder")),
-                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Hosting")),
-                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Http")),
-                    UsingDirective(IdentifierName("Microsoft.AspNetCore.Routing")),
-                    UsingDirective(IdentifierName("Microsoft.Extensions.DependencyInjection")),
-                    ]))
-            .WithMembers(
-                SingletonList<MemberDeclarationSyntax>(
-                    FileScopedNamespaceDeclaration(IdentifierName(KnownTypes.CommonNamespace[8..]))
-                    .WithMembers(
-                        List<MemberDeclarationSyntax>([
-                            ClassDeclaration("GeneratedEndpoints")
-                                .WithMembers(
-                                    List<MemberDeclarationSyntax>([registry,..endpoints]))
-                                .WithModifiers(
-                                    TokenList(
-                                        SyntaxKind.InternalKeyword.Token,
-                                        SyntaxKind.StaticKeyword.Token,
-                                        SyntaxKind.PartialKeyword.Token))
-                                    ]))));
+                    ));
 
         context.AddSource("GeneratedEndpoints.g.cs", code.NormalizeWhitespace().ToFullString());
     }

@@ -18,7 +18,7 @@ internal static class ExpressionSyntaxExtensions
 
         public InvocationExpressionSyntax Invoke(params IEnumerable<ArgumentSyntax>? arguments)
         {
-            InvocationExpressionSyntax expr = method.Invoke();
+            var expr = method.Invoke();
 
             if (arguments is not null)
                 expr = expr.WithArgumentList(ArgumentList(arguments.OfType<ArgumentSyntax>().AsSeparatedList()));
@@ -99,23 +99,18 @@ internal static class ExpressionSyntaxExtensions
     {
         public ExpressionSyntax AsString()
             => LiteralExpression(SyntaxKind.StringLiteralExpression, token);
+    }
 
-        public GenericNameSyntax AsGeneric(SeparatedSyntaxList<TypeSyntax> types)
-            => GenericName(token)
-            .WithTypeArgumentList(TypeArgumentList(types));
+    extension(GenericNameSyntax generic)
+    {
+        public GenericNameSyntax WithType(SeparatedSyntaxList<TypeSyntax> types)
+            => generic.WithTypeArgumentList(TypeArgumentList(types));
 
-        public GenericNameSyntax AsGeneric(params IEnumerable<TypeSyntax>? types)
-        {
-            GenericNameSyntax expr = GenericName(token);
-            if (types is not null)
-                expr = expr.WithTypeArgumentList(TypeArgumentList(types.AsSeparatedList()));
+        public GenericNameSyntax WithType(params IEnumerable<TypeSyntax> types)
+            => generic.WithType(types.AsSeparatedList());
 
-            return expr;
-        }
-
-        public GenericNameSyntax AsGeneric(TypeSyntax type)
-            => GenericName(token)
-            .WithTypeArgumentList(TypeArgumentList(type.AsSingleton()));
+        public GenericNameSyntax WithType(TypeSyntax type)
+            => generic.WithType(type.AsSingleton());
     }
 
     extension(TypeSyntax type)

@@ -15,5 +15,4 @@ internal static class SyntaxHelper
             VariableDeclarator(identifier.WithLeadingTrivia(Space))
                 .WithInitializer(EqualsValueClause(value))
                 .AsSingleton());
-
 }
