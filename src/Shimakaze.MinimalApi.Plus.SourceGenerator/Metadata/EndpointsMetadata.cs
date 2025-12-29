@@ -31,16 +31,17 @@ internal sealed class EndpointsMetadata
     public ExpressionSyntax? Remarks { get; }
     public ExpressionSyntax? EndpointName { get; }
     public ImmutableArray<ParameterMetadata> Parameters { get; }
-    public ImmutableDictionary<ExpressionSyntax, ImmutableArray<IdentifierNameSyntax>> EndPoints { get; }
+    public ImmutableDictionary<LiteralExpressionSyntax, ImmutableArray<IdentifierNameSyntax>> EndPoints { get; }
     public ExpressionSyntax? GroupName { get; }
     public ImmutableArray<ExpressionSyntax>? Tags { get; }
     public ImmutableArray<ExpressionSyntax>? Hosts { get; }
-    public bool? Authorize { get; }
+    public ImmutableArray<AuthorizeData> Authorize { get; }
     public bool? ValidateAntiForgeryToken { get; }
     public bool? IgnoreAntiforgeryToken { get; }
     public bool? ExcludeFromDescription { get; }
     public bool? AllowAnonymous { get; }
     public bool? DisableHttpMetrics { get; }
+    public bool? Obsolete { get; }
 
     public EndpointsMetadata(ControllerMetadata controller, ActionMetadata action, Func<string, string> formatter)
     {
@@ -69,12 +70,13 @@ internal sealed class EndpointsMetadata
         GroupName = action.Group ?? controller.Group;
         Tags = action.Tags ?? controller.Tags;
         Hosts = action.Hosts ?? controller.Hosts;
-        Authorize = action.Authorize ?? controller.Authorize;
+        Authorize = [.. action.Authorize ?? controller.Authorize];
         ValidateAntiForgeryToken = action.ValidateAntiForgeryToken ?? controller.ValidateAntiForgeryToken;
         IgnoreAntiforgeryToken = action.IgnoreAntiforgeryToken ?? controller.IgnoreAntiforgeryToken;
         ExcludeFromDescription = action.Hidden ?? controller.Hidden;
         AllowAnonymous = action.AllowAnonymous ?? controller.AllowAnonymous;
         DisableHttpMetrics = action.DisableHttpMetrics ?? controller.DisableHttpMetrics;
+        Obsolete = action.Obsolete ?? controller.Obsolete;
     }
 
     private string CombineTemplate(string? controllerTemplate, string template, Func<string, string> formatter)

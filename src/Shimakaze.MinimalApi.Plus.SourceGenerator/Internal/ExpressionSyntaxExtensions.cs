@@ -29,40 +29,52 @@ internal static class ExpressionSyntaxExtensions
         public InvocationExpressionSyntax Invoke(ArgumentSyntax argument)
             => method.Invoke(argument.AsSingleton());
 
-        public ExpressionSyntax InvokeAsync()
+        public AwaitExpressionSyntax InvokeAsync()
             => method.Invoke().Await();
 
-        public ExpressionSyntax InvokeAsync(SeparatedSyntaxList<ArgumentSyntax> arguments)
+        public AwaitExpressionSyntax InvokeAsync(SeparatedSyntaxList<ArgumentSyntax> arguments)
             => method.Invoke(arguments).Await();
 
-        public ExpressionSyntax InvokeAsync(IEnumerable<ArgumentSyntax> arguments)
+        public AwaitExpressionSyntax InvokeAsync(IEnumerable<ArgumentSyntax> arguments)
             => method.Invoke(arguments).Await();
 
-        public ExpressionSyntax InvokeAsync(ArgumentSyntax argument)
+        public AwaitExpressionSyntax InvokeAsync(ArgumentSyntax argument)
             => method.Invoke(argument).Await();
     }
 
     extension(ExpressionSyntax expr)
     {
-        public ExpressionSyntax Await()
+        public AwaitExpressionSyntax Await()
             => AwaitExpression(expr.WithLeadingTrivia(Space));
 
-        public ExpressionSyntax Parenthesized()
+        public ParenthesizedExpressionSyntax Parenthesized()
             => ParenthesizedExpression(expr);
 
-        public ExpressionSyntax NotNullAssert()
+        public PostfixUnaryExpressionSyntax NotNullAssert()
             => PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, expr);
 
-        public ExpressionSyntax Coalesce(ExpressionSyntax next)
+        public BinaryExpressionSyntax Coalesce(ExpressionSyntax next)
             => BinaryExpression(
                 SyntaxKind.CollectionExpression,
                 expr,
                 next);
+
+        public AssignmentExpressionSyntax Assignment(ExpressionSyntax right)
+            => AssignmentExpression(
+                SyntaxKind.SimpleAssignmentExpression,
+                expr,
+                right);
+
+        public AssignmentExpressionSyntax CoalesceAssignment(ExpressionSyntax right)
+            => AssignmentExpression(
+                SyntaxKind.CoalesceAssignmentExpression,
+                expr,
+                right);
     }
 
     extension(ExpressionSyntax type)
     {
-        public ExpressionSyntax GetMember(SimpleNameSyntax member)
+        public MemberAccessExpressionSyntax GetMember(SimpleNameSyntax member)
             => MemberAccessExpression(
                 SyntaxKind.SimpleMemberAccessExpression,
                 type,
@@ -93,6 +105,9 @@ internal static class ExpressionSyntaxExtensions
     {
         public LambdaExpressionSyntax WithAsync()
             => lambda.WithAsyncKeyword(SyntaxKind.AsyncKeyword.Token);
+
+        public LambdaExpressionSyntax WithStatic()
+            => lambda.AddModifiers(SyntaxKind.StaticKeyword.Token);
     }
 
     extension(SyntaxKind kind)
@@ -102,7 +117,7 @@ internal static class ExpressionSyntaxExtensions
 
     extension(SyntaxToken token)
     {
-        public ExpressionSyntax AsString()
+        public LiteralExpressionSyntax AsString()
             => LiteralExpression(SyntaxKind.StringLiteralExpression, token);
     }
 

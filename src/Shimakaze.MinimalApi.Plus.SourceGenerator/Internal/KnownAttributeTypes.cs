@@ -42,6 +42,7 @@ internal static class KnownAttributeTypes
     public const string ActionName = "global::Microsoft.AspNetCore.Mvc.ActionNameAttribute";
     public const string NonAction = "global::Microsoft.AspNetCore.Mvc.NonActionAttribute";
 
+    public const string Obsolete = "global::System.ObsoleteAttribute";
     // 这是个抽象类
     public const string HttpMethod = "global::Microsoft.AspNetCore.Mvc.Routing.HttpMethodAttribute";
     // Not Supported

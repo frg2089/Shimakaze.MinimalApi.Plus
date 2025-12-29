@@ -16,15 +16,18 @@ internal sealed class ParameterMetadata
     public IdentifierNameSyntax Identifier { get; }
     public ExpressionSyntax NameOf { get; }
 
-    public ExpressionSyntax? Summary { get; }
+    public ExpressionSyntax? Description { get; }
     public TypeSyntax Type { get; }
+    public ExpressionSyntax NameOfType { get; }
     public string TypeFullName { get; }
     public NullableAnnotation Nullable { get; }
     public bool IsValueType { get; }
+    public bool Obsolete { get; }
 
-    [MemberNotNullWhen(true, nameof(ItemType))]
+    [MemberNotNullWhen(true, nameof(ItemType), nameof(NameOfItemType))]
     public bool IsCollection { get; }
     public TypeSyntax? ItemType { get; }
+    public ExpressionSyntax? NameOfItemType { get; }
 
     public bool IsFromBody => _from.HasFlag(ParameterFrom.FromBody);
     public bool IsFromForm => _from.HasFlag(ParameterFrom.FromForm);
@@ -46,16 +49,25 @@ internal sealed class ParameterMetadata
         Identifier = SyntaxFactory.IdentifierName(Token);
         NameOf = SyntaxFactory.Literal(parameter.Name).AsString();
         if (desc is { Length: not 0 } && !string.IsNullOrWhiteSpace(desc))
-            Summary = SyntaxFactory.Literal(desc).AsString();
+            Description = SyntaxFactory.Literal(desc).AsString();
 
         TypeFullName = parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         Type = SyntaxFactory.ParseTypeName(TypeFullName);
+        NameOfType = SyntaxFactory.Literal(parameter.Type.Name).AsString();
         Nullable = parameter.NullableAnnotation;
         IsValueType = parameter.Type.BaseType?.SpecialType is SpecialType.System_ValueType;
-        if (parameter.Type.AllInterfaces.FirstOrDefault(i => i.SpecialType is SpecialType.System_Collections_Generic_IEnumerator_T) is { } enumerable)
+        if (parameter.Type is IArrayTypeSymbol arrayTypeSymbol)
         {
             IsCollection = true;
-            ItemType = SyntaxFactory.ParseTypeName(enumerable.TypeArguments.First().ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            ItemType = SyntaxFactory.ParseTypeName(arrayTypeSymbol.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            NameOfItemType = SyntaxFactory.Literal(arrayTypeSymbol.ElementType.Name).AsString();
+        }
+        else if (parameter.Type.AllInterfaces.FirstOrDefault(i => i.SpecialType is SpecialType.System_Collections_Generic_IEnumerator_T) is { } enumerable)
+        {
+            IsCollection = true;
+            var itemType = enumerable.TypeArguments.First();
+            ItemType = SyntaxFactory.ParseTypeName(itemType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            NameOfItemType = SyntaxFactory.Literal(itemType.Name).AsString();
         }
 
         foreach (var attribute in parameter.GetAttributes())
@@ -68,7 +80,7 @@ internal sealed class ParameterMetadata
             switch (attributeType)
             {
                 case KnownAttributeTypes.Description:
-                    Summary = SyntaxFactory.ParseExpression(attribute.ConstructorArguments.FirstOrDefault().ToCSharpString());
+                    Description = SyntaxFactory.ParseExpression(attribute.ConstructorArguments.FirstOrDefault().ToCSharpString());
                     break;
                 case KnownAttributeTypes.FromKeyedServices:
                     FromKeyedServices = SyntaxFactory.ParseExpression(attribute.ConstructorArguments.FirstOrDefault().ToCSharpString());
@@ -96,7 +108,8 @@ internal sealed class ParameterMetadata
                     _from |= ParameterFrom.FromRoute;
                     FromRoute = SyntaxFactory.ParseExpression(attribute.NamedArguments.FirstOrDefault(i => i.Key is "Name").Value.ToCSharpString());
                     break;
-                default:
+                case KnownAttributeTypes.Obsolete:
+                    Obsolete = true;
                     break;
             }
         }

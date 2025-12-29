@@ -1,4 +1,5 @@
 ﻿using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -12,18 +13,21 @@ namespace Shimakaze.MinimalApi.Plus.SourceGenerator.Metadata;
 
 internal abstract class CommonMetadata
 {
+    private readonly List<AuthorizeData> _authorizes = [];
+
     public ExpressionSyntax? EndpointName { get; private set; }
     public ExpressionSyntax? Group { get; private set; }
     public string? Template { get; private set; }
     public ImmutableArray<ExpressionSyntax>? Tags { get; private set; }
     public ImmutableArray<ExpressionSyntax>? Hosts { get; private set; }
-
-    public bool? Authorize { get; private set; }
+    [NotNull]
+    public IEnumerable<AuthorizeData>? Authorize => field ??= _authorizes;
     public bool? ValidateAntiForgeryToken { get; private set; }
     public bool? IgnoreAntiforgeryToken { get; private set; }
     public bool? Hidden { get; private set; }
     public bool? AllowAnonymous { get; private set; }
     public bool? DisableHttpMetrics { get; private set; }
+    public bool? Obsolete { get; private set; }
 
     protected virtual void ParseAttribute(AttributeData attribute)
     {
@@ -65,7 +69,7 @@ internal abstract class CommonMetadata
                 }
                 break;
             case KnownAttributeTypes.Authorize:
-                Authorize = true;
+                _authorizes.Add(new(attribute));
                 break;
             case KnownAttributeTypes.ValidateAntiForgeryToken:
                 ValidateAntiForgeryToken = true;
@@ -99,6 +103,9 @@ internal abstract class CommonMetadata
                 // [ProducesResponseType(StatusCodes.Status404NotFound)]
                 // ---
                 // endpoint.Produces(StatusCodes.Status404NotFound);
+                break;
+            case KnownAttributeTypes.Obsolete:
+                Obsolete = true;
                 break;
         }
     }

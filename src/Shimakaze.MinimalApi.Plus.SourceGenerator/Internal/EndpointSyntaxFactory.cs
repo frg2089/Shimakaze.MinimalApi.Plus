@@ -11,7 +11,7 @@ namespace Shimakaze.MinimalApi.Plus.SourceGenerator.Internal;
 
 internal static class EndpointSyntaxFactory
 {
-    public static IEnumerable<StatementSyntax> GenerateCode(this EndpointsMetadata metadata, ExpressionSyntax route)
+    public static IEnumerable<StatementSyntax> GenerateCode(this EndpointsMetadata metadata, ExpressionSyntax route, Version? openApi)
     {
         List<StatementSyntax> debugChecks = new(metadata.Parameters.Length);
         List<StatementSyntax> nullableChecks = new(metadata.Parameters.Length);
@@ -59,8 +59,8 @@ internal static class EndpointSyntaxFactory
             // global::Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<T>(, context);
             if (!metadata.IsStatic)
             {
-                ExpressionSyntax createInstanceExpr = Types
-                    .ActivatorUtilities
+                ExpressionSyntax createInstanceExpr =
+                    ActivatorUtilities
                     .InvokeMethod(
                         CreateInstance.WithType(metadata.Type),
                         Argument(HttpContext.RequestServices));
@@ -99,10 +99,10 @@ internal static class EndpointSyntaxFactory
                     .AsStatement());
 
             var lambda =
-                SimpleLambdaExpression(
-                    Parameter(HttpContextInstanceToken),
-                    Block(body.AsSeparatedList()))
-                .WithAsync();
+                SimpleLambdaExpression(Parameter(HttpContextInstanceToken))
+                .WithBody(Block(body.AsSeparatedList()))
+                .WithAsync()
+                .WithStatic();
 
             var invokeChain = route
                 .InvokeMethod(
@@ -151,16 +151,195 @@ internal static class EndpointSyntaxFactory
             if (metadata.Hosts is not null)
                 invokeChain = invokeChain.InvokeMethod(RequireHost, metadata.Hosts.Value.Select(Argument));
 
-            if (metadata.Authorize is true)
+            if (metadata.Authorize.Any())
                 invokeChain = invokeChain.InvokeMethod(
                     RequireAuthorization,
                     Argument(
                         MethodInfoInstance
-                            .InvokeMethod(GetCustomAttributes.WithType(Types.Authorize))
+                            .InvokeMethod(GetCustomAttributes.WithType(AuthorizeAttribute))
                             .InvokeMethod(ToArray)));
 
             if (metadata.AllowAnonymous is true)
                 invokeChain = invokeChain.InvokeMethod(AllowAnonymous);
+
+            switch (openApi)
+            {
+                case { Major: >= 10 }:
+                    {
+                        List<StatementSyntax> statements = [];
+                        if (metadata.Obsolete is true)
+                            statements.Add(
+                                OpenApiOperationInstance
+                                    .GetMember(Deprecated)
+                                    .Assignment(True)
+                                .AsStatement());
+
+                        statements.Add(
+                            OpenApiOperationInstance
+                                .GetMember(Parameters)
+                                .CoalesceAssignment(CollectionExpression())
+                            .AsStatement());
+
+                        if (metadata.Authorize.Any())
+                        {
+                            statements.Add(
+                                OpenApiOperationInstance
+                                    .GetMember(Security)
+                                    .CoalesceAssignment(CollectionExpression())
+                                .AsStatement());
+
+                            var emptyCollection = CollectionExpression();
+                            var defaultValue = Literal("Authentication").AsString();
+
+                            var expressionSyntaxes = metadata
+                                .Authorize
+                                .Select(authorize => ImplicitElementAccess()
+                                    .WithArgumentList(
+                                        BracketedArgumentList(
+                                            Argument(
+                                                ImplicitObjectCreationExpression()
+                                                    .WithArgumentList(
+                                                        ArgumentList(
+                                                            Argument(authorize.AuthenticationSchemes ?? defaultValue)
+                                                                .AsSingleton())))
+                                                .AsSingleton()))
+                                        .Assignment(emptyCollection))
+                                .AsSeparatedList<ExpressionSyntax>();
+
+                            statements.Add(OpenApiOperationInstance
+                                .GetMember(Security)
+                                .InvokeMethod(
+                                    Add,
+                                    Argument(
+                                        ImplicitObjectCreationExpression()
+                                            .WithInitializer(
+                                                InitializerExpression(SyntaxKind.CollectionInitializerExpression)
+                                                    .WithExpressions(expressionSyntaxes))))
+                                .AsStatement());
+                        }
+
+                        foreach (var parameter in metadata.Parameters)
+                        {
+                            List<ExpressionSyntax> expressions = [];
+                            if (parameter.IsFromBody)
+                            {
+                                if (parameter.Description is not null)
+                                    expressions.Add(Description.Assignment(parameter.Description));
+                                if (parameter.Nullable is NullableAnnotation.Annotated)
+                                    expressions.Add(Required.Assignment(False));
+                                else
+                                    expressions.Add(Required.Assignment(True));
+
+                                var schema = parameter.NameOfItemType ?? parameter.NameOfType;
+                                schema = ObjectCreationExpression(OpenApiSchemaReference)
+                                .WithArgumentList(ArgumentList(Argument(schema)
+                                    .AsSingleton()));
+
+                                if (parameter.IsCollection)
+                                {
+                                    schema = ObjectCreationExpression(OpenApiSchema)
+                                        .WithInitializer(InitializerExpression(SyntaxKind.ObjectInitializerExpression)
+                                            .WithExpressions(SeparatedList<ExpressionSyntax>([
+                                                Constants.Type.Assignment(JsonSchemaType.GetMember(Constants.Array)),
+                                                Items.Assignment(schema),
+                                                ])));
+                                }
+
+                                schema = Schema.Assignment(schema);
+                                schema = ImplicitObjectCreationExpression()
+                                    .WithInitializer(InitializerExpression(SyntaxKind.ObjectInitializerExpression)
+                                        .WithExpressions(schema.AsSingleton()));
+
+                                schema = ImplicitElementAccess()
+                                    .WithArgumentList(
+                                        BracketedArgumentList(
+                                            Argument(MediaTypeNames_Application.GetMember(Json))
+                                                .AsSingleton()))
+                                    .Assignment(schema);
+
+                                schema = ObjectCreationExpression(Dictionary_string_OpenApiMediaType)
+                                    .WithInitializer(InitializerExpression(SyntaxKind.CollectionInitializerExpression)
+                                        .WithExpressions(schema.AsSingleton()));
+
+                                expressions.Add(Content.Assignment(schema));
+
+                                statements.Add(OpenApiOperationInstance
+                                    .GetMember(RequestBody)
+                                    .Assignment(
+                                        ObjectCreationExpression(OpenApiRequestBody)
+                                            .WithInitializer(InitializerExpression(SyntaxKind.ObjectInitializerExpression)
+                                                .WithExpressions(expressions.AsSeparatedList())))
+                                    .AsStatement());
+
+                                continue;
+                            }
+
+                            expressions.Add(Name.Assignment(parameter.NameOf));
+                            if (parameter.Description is not null)
+                                expressions.Add(Description.Assignment(parameter.Description));
+                            if (parameter.Obsolete is true)
+                                expressions.Add(Deprecated.Assignment(True));
+                            if (parameter.Nullable is NullableAnnotation.Annotated)
+                            {
+                                expressions.Add(Required.Assignment(False));
+                                expressions.Add(AllowEmptyValue.Assignment(True));
+                            }
+                            else
+                            {
+                                expressions.Add(Required.Assignment(True));
+                            }
+
+                            if (parameter.IsFromHeader)
+                            {
+                                expressions.Add(In.Assignment(ParameterLocation.GetMember(Header)));
+                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Simple)));
+                            }
+                            if (parameter.IsFromRoute)
+                            {
+                                expressions.Add(In.Assignment(ParameterLocation.GetMember(Constants.Path)));
+                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Simple)));
+                            }
+                            if (parameter.IsFromQuery)
+                            {
+                                expressions.Add(In.Assignment(ParameterLocation.GetMember(Query)));
+                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Form)));
+                                if (parameter.IsCollection)
+                                    expressions.Add(Explode.Assignment(True));
+                            }
+
+                            statements.Add(
+                                OpenApiOperationInstance
+                                    .InvokeMethod(
+                                        Add,
+                                        Argument(
+                                            ObjectCreationExpression(OpenApiParameter)
+                                                .WithArgumentList(ArgumentList())
+                                                .WithInitializer(
+                                                    InitializerExpression(SyntaxKind.ObjectInitializerExpression)
+                                                        .WithExpressions(expressions.AsSeparatedList()))))
+                                    .AsStatement());
+                        }
+
+                        invokeChain = invokeChain.InvokeMethod(
+                            AddOpenApiOperationTransformer,
+                            Argument(
+                                ParenthesizedLambdaExpression(
+                                    ParameterList(
+                                        SeparatedList([
+                                            Parameter(OpenApiOperationInstanceToken),
+                                            Parameter(OpenApiOperationTransformerContextInstanceToken),
+                                            Parameter(CancellationTokenInstanceToken),
+                                            ])),
+                                    Block(statements.AsSeparatedList()))
+                                    .WithAsync()
+                                    .WithStatic()));
+                        break;
+                    }
+                case { Major: >= 9 }:
+                    break;
+                default:
+                    break;
+            }
 
             yield return
                Block(
@@ -187,8 +366,7 @@ internal static class EndpointSyntaxFactory
         if (isIResult)
             return result;
 
-        return Types
-            .TypedResults
+        return TypedResults
             .InvokeMethod(
                 Ok,
                 Argument(result));
@@ -196,7 +374,7 @@ internal static class EndpointSyntaxFactory
 
     private static ExpressionSyntax FromRequestSimple(SimpleNameSyntax member, TypeSyntax parameterType, bool isCollection, ExpressionSyntax name)
     {
-        var value = HttpContext.Request.GetMember(member);
+        ExpressionSyntax value = HttpContext.Request.GetMember(member);
         value =
             ElementAccessExpression(value)
             .WithArgumentList(
@@ -213,7 +391,7 @@ internal static class EndpointSyntaxFactory
                 TypeArgumentList(
                     SingletonSeparatedList(parameterType)));
 
-        var expr = Types.EndpointsHelper
+        ExpressionSyntax expr = EndpointsHelper
             .GetMember(method);
 
         expr = expr
@@ -235,7 +413,7 @@ internal static class EndpointSyntaxFactory
     {
         if (parameter.IsFromBody)
         {
-            var expr = HttpContext.Request
+            ExpressionSyntax expr = HttpContext.Request
                 .InvokeMethod(
                    ReadFromJsonAsync
                         .WithType(type),
@@ -336,7 +514,7 @@ internal static class EndpointSyntaxFactory
                 .WithLeadingTrivia(Space))
             .WithLeadingTrivia(Space));
 
-        expr = Types.Debug
+        expr = Debug
             .InvokeMethod(
                 Assert,
                 Argument(expr));
@@ -346,7 +524,7 @@ internal static class EndpointSyntaxFactory
 
     public static StatementSyntax RuntimeAssertIsNotNull(ExpressionSyntax parameter, ExpressionSyntax parameterName)
     {
-        var expr = Types
+        var expr = Constants
             .ArgumentNullException
             .InvokeMethod(
                 ThrowIfNull,

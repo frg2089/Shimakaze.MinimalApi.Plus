@@ -38,4 +38,16 @@ internal static class KnownTypes
 
     public const string IEndpointRouteBuilder = "global::Microsoft.AspNetCore.Routing.IEndpointRouteBuilder";
 
+    public const string OpenApiRequestBody = "global::Microsoft.OpenApi.OpenApiRequestBody";
+    public const string OpenApiParameter = "global::Microsoft.OpenApi.OpenApiParameter";
+    public const string ParameterLocation = "global::Microsoft.OpenApi.ParameterLocation";
+    public const string ParameterStyle = "global::Microsoft.OpenApi.ParameterStyle";
+    public const string OpenApiMediaType = "global::Microsoft.OpenApi.OpenApiMediaType";
+    public const string OpenApiSchema = "global::Microsoft.OpenApi.OpenApiSchema";
+    public const string OpenApiSchemaReference = "global::Microsoft.OpenApi.OpenApiSchemaReference";
+    public const string JsonSchemaType = "global::Microsoft.OpenApi.JsonSchemaType";
+
+    public const string MediaTypeNames = "global::System.Net.Mime.MediaTypeNames";
+    public const string MediaTypeNames_Application = $"{MediaTypeNames}.Application";
+
 }

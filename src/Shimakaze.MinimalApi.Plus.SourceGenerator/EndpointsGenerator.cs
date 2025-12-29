@@ -22,19 +22,24 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
         context.RegisterImplementationSourceOutput(
             context.SyntaxProvider.ForAttributeWithMetadataName(
                 KnownTypes.ApiEndpointsAttribute[8..],
-                (node, _) => node is not null,
-                (context, _) => context.TargetSymbol as INamedTypeSymbol)
+                static (node, _) => node is not null,
+                static (context, _) => context.TargetSymbol as INamedTypeSymbol)
             .Collect()
             .Combine(context
                 .AnalyzerConfigOptionsProvider
-                .Select((c, _) => c.GlobalOptions)),
+                .Select(static (c, _) => c.GlobalOptions)
+                .Combine(context
+                    .CompilationProvider
+                    .Select(static (c, _) => c.ReferencedAssemblyNames))),
             Generate);
     }
-    private static void Generate(SourceProductionContext context, (ImmutableArray<INamedTypeSymbol?> Symbols, AnalyzerConfigOptions Options) data)
+    private static void Generate(SourceProductionContext context, (ImmutableArray<INamedTypeSymbol?> Symbols, (AnalyzerConfigOptions Options, IEnumerable<AssemblyIdentity> References)) data)
     {
-        var options = data.Options;
+        var options = data.Item2.Options;
 
-        if (!options.TryGetValue("build_property.RootNamespace", out var @namespace))
+        var openApi = data.Item2.References.FirstOrDefault(i => i.Name is "Microsoft.AspNetCore.OpenApi")?.Version;
+
+        if (!options.TryGetValue("build_property.RootNamespace", out string? @namespace))
             @namespace = KnownTypes.CommonNamespace[8..];
 
         var controllers = data
@@ -83,12 +88,12 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
                                 .WithMembers(
                                     List<MemberDeclarationSyntax>([
                                         MethodDeclaration(
-                                            Types.IServiceCollection,
+                                            Constants.IServiceCollection,
                                             Constants.AddEndpointsToken)
                                             .WithParameterList(
                                             ParameterList(
                                                 Parameter(Constants.IServiceCollectionInstanceToken)
-                                                    .WithType(Types.IServiceCollection)
+                                                    .WithType(Constants.IServiceCollection)
                                                     .WithModifiers(TokenList(SyntaxKind.ThisKeyword.Token))
                                                     .AsSingleton()))
                                             .WithBody(
@@ -106,14 +111,14 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
                                             Constants.MapEndpointsToken)
                                             .WithParameterList(
                                                 ParameterList(Parameter(Constants.IEndpointRouteBuilderInstanceToken)
-                                                    .WithType(Types.IEndpointRouteBuilder)
+                                                    .WithType(Constants.IEndpointRouteBuilder)
                                                     .WithModifiers(TokenList(SyntaxKind.ThisKeyword.Token))
                                                     .AsSingleton()))
                                             .WithBody(
                                                 Block(controllers
                                                     .SelectMany(i => i.Actions)
                                                     .Select(i => EndpointsMetadata.Create(i, i => i.Kebaberize()))
-                                                    .SelectMany(i => i.GenerateCode(Constants.IEndpointRouteBuilderInstance))
+                                                    .SelectMany(i => i.GenerateCode(Constants.IEndpointRouteBuilderInstance, openApi))
                                                     .AsSeparatedList()))
                                             .WithModifiers(
                                                 TokenList(
