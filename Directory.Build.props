@@ -9,6 +9,7 @@
     <Authors>frg2089</Authors>
     <Description>A library that simplifies .NET Minimal API development through Source Generator, providing more elegant API endpoint definitions. Features include compile-time code generation, dependency injection support, type-safe routing, and AOT compatibility (.NET 9.0 and above).</Description>
     <Copyright>Copyright © 2025 - $([System.DateTime]::Now.ToString("yyyy")) $(Authors)</Copyright>
+    <PackageTags>aspnetcore minimal-api</PackageTags>
     <PackageProjectUrl>https://github.com/frg2089/Shimakaze.MinimalApi.Plus</PackageProjectUrl>
     <RepositoryUrl>https://github.com/frg2089/Shimakaze.MinimalApi.Plus.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>

@@ -7,6 +7,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <BuildOutputTargetFolder>analyzers/dotnet/cs</BuildOutputTargetFolder>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <PackageTags>sourcegenerator $(PackageTags)</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
