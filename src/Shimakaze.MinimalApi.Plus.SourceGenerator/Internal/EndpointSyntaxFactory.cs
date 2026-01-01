@@ -223,6 +223,27 @@ internal static class EndpointSyntaxFactory
                             List<ExpressionSyntax> expressions = [];
                             if (parameter.IsFromBody)
                             {
+                                var schemaId = parameter.NameOfItemType ?? parameter.NameOfType;
+                                ExpressionSyntax schema = TypeOfExpression(parameter.ItemType ?? parameter.Type);
+                                schema = OpenApiOperationTransformerContextInstance
+                                   .InvokeMethod(
+                                        GetOrCreateSchemaAsync,
+                                        [
+                                            Argument(schema),
+                                            Argument(LiteralExpression(SyntaxKind.NullLiteralExpression)),
+                                            Argument(CancellationTokenInstance),
+                                        ])
+                                   .Await();
+                                schema = OpenApiOperationTransformerContextInstance
+                                    .GetMember(Constants.Document)
+                                    .InvokeMethod(
+                                        AddComponent,
+                                        [
+                                            Argument(schemaId),
+                                            Argument(schema),
+                                        ]);
+                                statements.Add(schema.AsStatement());
+
                                 if (parameter.Description is not null)
                                     expressions.Add(Description.Assignment(parameter.Description));
                                 if (parameter.Nullable is NullableAnnotation.Annotated)
@@ -230,7 +251,7 @@ internal static class EndpointSyntaxFactory
                                 else
                                     expressions.Add(Required.Assignment(True));
 
-                                var schema = parameter.NameOfItemType ?? parameter.NameOfType;
+                                schema = parameter.NameOfItemType ?? parameter.NameOfType;
                                 schema = ObjectCreationExpression(OpenApiSchemaReference)
                                 .WithArgumentList(ArgumentList(Argument(schema)
                                     .AsSingleton()));
