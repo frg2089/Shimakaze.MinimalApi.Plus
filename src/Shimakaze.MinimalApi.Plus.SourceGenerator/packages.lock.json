@@ -4,9 +4,9 @@
     ".NETStandard,Version=v2.0": {
       "GitVersion.MsBuild": {
         "type": "Direct",
-        "requested": "[6.5.1, )",
-        "resolved": "6.5.1",
-        "contentHash": "92zAmfGWVtjHM8eR7O+1WWxqP+gulXvVqu3Sb1+KzuImdmxBt/bln/dMRvsIyV69KEiSrtbUoet4HBjG+bOLyw=="
+        "requested": "[6.6.0, )",
+        "resolved": "6.6.0",
+        "contentHash": "DleYRs4QwkTFmqODJKBgQ3wRbPytZ/Zb5ZdBczUslXkAizp+2vVS+NuivgjwzZNnLKyVFa3IYUAcGbcMAgs3Ww=="
       },
       "Humanizer.Core": {
         "type": "Direct",
@@ -54,9 +54,9 @@
       },
       "Polyfill": {
         "type": "Direct",
-        "requested": "[9.5.0, )",
-        "resolved": "9.5.0",
-        "contentHash": "T3E8+K+W0u78495PwSSJOzT6QUbnZSdkDK4B3nfvxUo9nctDr6ChSDLV4l/RD2ZmA5oHM2YbLvyp+a2uE0ftOQ=="
+        "requested": "[9.11.0, )",
+        "resolved": "9.11.0",
+        "contentHash": "14DVSS9k7U9XleWrNtTCQJePg4M3l1EtabVkYocAOUDGVFyOYV9pkYEofpLJyxdC4efhJY6bUo9lRd9n84JIBw=="
       },
       "Microsoft.CodeAnalysis.Common": {
         "type": "Transitive",
