@@ -60,8 +60,8 @@ public sealed class EndpointsGenerator : IIncrementalGenerator
                         context.Report(DiagnosticDescriptors.API0003, i, i!);
                         return false;
                     default:
-                        context.Report(DiagnosticDescriptors.API0001, i, i!, i.TypeKind);
-                        return false;
+                        // context.Report(DiagnosticDescriptors.API0001, i, i!, i.TypeKind);
+                        return true;
                 }
             })
             .Select(i => new ControllerMetadata(i));

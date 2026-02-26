@@ -42,6 +42,7 @@ internal sealed class EndpointsMetadata
     public bool? AllowAnonymous { get; }
     public bool? DisableHttpMetrics { get; }
     public bool? Obsolete { get; }
+    public List<AttributeData> OtherMetadata { get; } = [];
 
     public EndpointsMetadata(ControllerMetadata controller, ActionMetadata action, Func<string, string> formatter)
     {
@@ -77,6 +78,8 @@ internal sealed class EndpointsMetadata
         AllowAnonymous = action.AllowAnonymous ?? controller.AllowAnonymous;
         DisableHttpMetrics = action.DisableHttpMetrics ?? controller.DisableHttpMetrics;
         Obsolete = action.Obsolete ?? controller.Obsolete;
+
+        OtherMetadata = [.. action.OtherMetadata.Concat(controller.OtherMetadata).Distinct()];
     }
 
     private string CombineTemplate(string? controllerTemplate, string template, Func<string, string> formatter)

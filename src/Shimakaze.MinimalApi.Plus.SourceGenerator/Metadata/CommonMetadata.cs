@@ -28,10 +28,12 @@ internal abstract class CommonMetadata
     public bool? AllowAnonymous { get; private set; }
     public bool? DisableHttpMetrics { get; private set; }
     public bool? Obsolete { get; private set; }
+    public List<AttributeData> OtherMetadata { get; } = [];
 
     protected virtual void ParseAttribute(AttributeData attribute)
     {
-        switch (attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))
+        var fullName = attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        switch (fullName)
         {
             case KnownAttributeTypes.ApiExplorerSettings:
                 foreach (var item in attribute.NamedArguments)
@@ -106,6 +108,32 @@ internal abstract class CommonMetadata
                 break;
             case KnownAttributeTypes.Obsolete:
                 Obsolete = true;
+                break;
+            default:
+                //StringBuilder sb = new();
+                //sb.Append("new ");
+                //sb.Append(fullName);
+                //sb.Append('(');
+                //bool append = false;
+                //foreach (var arg in attribute.ConstructorArguments)
+                //{
+                //    append = true;
+                //    sb.Append(arg.ToCSharpString());
+                //    sb.Append(", ");
+                //}
+                //foreach (var arg in attribute.NamedArguments)
+                //{
+                //    append = true;
+                //    sb.Append(arg.Key);
+                //    sb.Append(" = ");
+                //    sb.Append(arg.Value.ToCSharpString());
+                //    sb.Append(", ");
+                //}
+                //if (append)
+                //    sb.Length -= 2;
+
+                //sb.Append(')');
+                OtherMetadata.Add(attribute);
                 break;
         }
     }

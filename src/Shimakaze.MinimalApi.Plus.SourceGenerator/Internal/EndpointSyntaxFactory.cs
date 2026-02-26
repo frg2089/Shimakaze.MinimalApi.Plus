@@ -162,6 +162,26 @@ internal static class EndpointSyntaxFactory
             if (metadata.AllowAnonymous is true)
                 invokeChain = invokeChain.InvokeMethod(AllowAnonymous);
 
+            foreach (var attribute in metadata.OtherMetadata)
+            {
+                var typeName = attribute.AttributeClass?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                if (typeName is not { Length: not 0 })
+                    continue;
+
+                var expr = ObjectCreationExpression(ParseTypeName(typeName))
+                    // 处理位置参数 (ConstructorArguments)
+                    .WithArgumentList(
+                        ArgumentList(attribute.ConstructorArguments.Select(arg => Argument(arg.CreateExpressionFromTypedConstant())).AsSeparatedList())
+                    )
+                    // 处理命名参数 (NamedArguments)
+                    .WithInitializer(InitializerExpression(SyntaxKind.ObjectInitializerExpression)
+                        .WithExpressions(attribute.NamedArguments.Select(kvp => IdentifierName(kvp.Key).Assignment(kvp.Value.CreateExpressionFromTypedConstant())).AsSeparatedList<ExpressionSyntax>()));
+
+                invokeChain = invokeChain.InvokeMethod(
+                    WithMetadata,
+                    Argument(expr));
+            }
+
             switch (openApi)
             {
                 case { Major: >= 10 }:
