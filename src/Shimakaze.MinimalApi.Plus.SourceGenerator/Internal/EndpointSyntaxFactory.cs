@@ -127,40 +127,40 @@ internal static class EndpointSyntaxFactory
             if (metadata.Remarks is not null)
                 invokeChain = invokeChain.InvokeMethod(WithDescription, Argument(metadata.Remarks));
 
-            if (metadata.ValidateAntiForgeryToken is true)
-                invokeChain = invokeChain.InvokeMethod(RequireAntiforgery);
+            //if (metadata.ValidateAntiForgeryToken is true)
+            //    invokeChain = invokeChain.InvokeMethod(RequireAntiforgery);
 
-            if (metadata.IgnoreAntiforgeryToken is true)
-                invokeChain = invokeChain.InvokeMethod(DisableAntiforgery);
+            //if (metadata.IgnoreAntiforgeryToken is true)
+            //    invokeChain = invokeChain.InvokeMethod(DisableAntiforgery);
 
-            if (metadata.ExcludeFromDescription is true)
-                invokeChain = invokeChain.InvokeMethod(ExcludeFromDescription);
+            //if (metadata.ExcludeFromDescription is true)
+            //    invokeChain = invokeChain.InvokeMethod(ExcludeFromDescription);
 
-            if (metadata.DisableHttpMetrics is true)
-                invokeChain = invokeChain.InvokeMethod(DisableHttpMetrics);
+            //if (metadata.DisableHttpMetrics is true)
+            //    invokeChain = invokeChain.InvokeMethod(DisableHttpMetrics);
 
-            if (metadata.EndpointName is not null)
-                invokeChain = invokeChain.InvokeMethod(WithName, Argument(metadata.EndpointName));
+            //if (metadata.EndpointName is not null)
+            //    invokeChain = invokeChain.InvokeMethod(WithName, Argument(metadata.EndpointName));
 
-            if (metadata.GroupName is not null)
-                invokeChain = invokeChain.InvokeMethod(WithGroupName, Argument(metadata.GroupName));
+            //if (metadata.GroupName is not null)
+            //    invokeChain = invokeChain.InvokeMethod(WithGroupName, Argument(metadata.GroupName));
 
-            if (metadata.Tags is not null)
-                invokeChain = invokeChain.InvokeMethod(WithTags, metadata.Tags.Value.Select(Argument));
+            //if (metadata.Tags is not null)
+            //    invokeChain = invokeChain.InvokeMethod(WithTags, metadata.Tags.Value.Select(Argument));
 
-            if (metadata.Hosts is not null)
-                invokeChain = invokeChain.InvokeMethod(RequireHost, metadata.Hosts.Value.Select(Argument));
+            //if (metadata.Hosts is not null)
+            //    invokeChain = invokeChain.InvokeMethod(RequireHost, metadata.Hosts.Value.Select(Argument));
 
-            if (metadata.Authorize.Any())
-                invokeChain = invokeChain.InvokeMethod(
-                    RequireAuthorization,
-                    Argument(
-                        MethodInfoInstance
-                            .InvokeMethod(GetCustomAttributes.WithType(AuthorizeAttribute))
-                            .InvokeMethod(ToArray)));
+            //if (metadata.Authorize.Any())
+            //    invokeChain = invokeChain.InvokeMethod(
+            //        RequireAuthorization,
+            //        Argument(
+            //            MethodInfoInstance
+            //                .InvokeMethod(GetCustomAttributes.WithType(AuthorizeAttribute))
+            //                .InvokeMethod(ToArray)));
 
-            if (metadata.AllowAnonymous is true)
-                invokeChain = invokeChain.InvokeMethod(AllowAnonymous);
+            //if (metadata.AllowAnonymous is true)
+            //    invokeChain = invokeChain.InvokeMethod(AllowAnonymous);
 
             foreach (var attribute in metadata.OtherMetadata)
             {
@@ -200,7 +200,8 @@ internal static class EndpointSyntaxFactory
                                 .CoalesceAssignment(CollectionExpression())
                             .AsStatement());
 
-                        if (metadata.Authorize.Any())
+                        if (!metadata.OtherMetadata.Any(i => i.AttributeClass?.AllInterfaces.Any(i => i.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) is KnownTypes.IAuthorizeData) == true)
+                            && metadata.OtherMetadata.Any(i => i.AttributeClass?.AllInterfaces.Any(i => i.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) is KnownTypes.IAuthorizeData) == true))
                         {
                             statements.Add(
                                 OpenApiOperationInstance
@@ -211,20 +212,17 @@ internal static class EndpointSyntaxFactory
                             var emptyCollection = CollectionExpression();
                             var defaultValue = Literal("Authentication").AsString();
 
-                            var expressionSyntaxes = metadata
-                                .Authorize
-                                .Select(authorize => ImplicitElementAccess()
-                                    .WithArgumentList(
-                                        BracketedArgumentList(
-                                            Argument(
-                                                ImplicitObjectCreationExpression()
-                                                    .WithArgumentList(
-                                                        ArgumentList(
-                                                            Argument(authorize.AuthenticationSchemes ?? defaultValue)
-                                                                .AsSingleton())))
-                                                .AsSingleton()))
-                                        .Assignment(emptyCollection))
-                                .AsSeparatedList<ExpressionSyntax>();
+                            var expressionSyntaxes = ImplicitElementAccess()
+                                .WithArgumentList(
+                                    BracketedArgumentList(
+                                        Argument(
+                                            ImplicitObjectCreationExpression()
+                                                .WithArgumentList(
+                                                    ArgumentList(
+                                                        Argument(defaultValue)
+                                                            .AsSingleton())))
+                                            .AsSingleton()))
+                                    .Assignment(emptyCollection);
 
                             statements.Add(OpenApiOperationInstance
                                 .GetMember(Security)
@@ -234,7 +232,7 @@ internal static class EndpointSyntaxFactory
                                         ImplicitObjectCreationExpression()
                                             .WithInitializer(
                                                 InitializerExpression(SyntaxKind.CollectionInitializerExpression)
-                                                    .WithExpressions(expressionSyntaxes))))
+                                                    .WithExpressions(SingletonSeparatedList<ExpressionSyntax>(expressionSyntaxes)))))
                                 .AsStatement());
                         }
 

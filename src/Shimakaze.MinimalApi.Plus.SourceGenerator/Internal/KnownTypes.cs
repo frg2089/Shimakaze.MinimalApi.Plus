@@ -7,6 +7,9 @@ internal static class KnownTypes
     public const string ApiEndpoints = $"{CommonNamespace}.ApiEndpoints";
     public const string ApiEndpointsAttribute = $"{CommonNamespace}.ApiEndpointsAttribute";
 
+    public const string IAllowAnonymous = "global::Microsoft.AspNetCore.Authorization.IAllowAnonymous";
+    public const string IAuthorizeData = "global::Microsoft.AspNetCore.Authorization.IAuthorizeData";
+
     public const string HttpContext = "global::Microsoft.AspNetCore.Http.HttpContext";
     public const string CancellationToken = "global::System.Threading.CancellationToken";
     public const string HttpRequest = "global::Microsoft.AspNetCore.Http.HttpRequest";

@@ -81,7 +81,7 @@ internal sealed class ActionMetadata : CommonMetadata
                         template = attribute.ConstructorArguments[0].Value as string;
 
                     _endpoints.Add(($"{KnownTypes.HttpMethods}.{attribute.AttributeClass.Name[4..^9]}", template));
-                    break;
+                    return;
                 }
             case KnownAttributeTypes.AcceptVerbs:
                 var tmp = attribute.ConstructorArguments.First();
@@ -94,7 +94,7 @@ internal sealed class ActionMetadata : CommonMetadata
                 {
                     _endpoints.Add((template, null));
                 }
-                break;
+                return;
         }
         base.ParseAttribute(attribute);
     }

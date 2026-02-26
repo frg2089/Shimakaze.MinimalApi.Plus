@@ -29,18 +29,18 @@ internal sealed class EndpointsMetadata
     public bool IsIResult { get; }
     public ExpressionSyntax? Summary { get; }
     public ExpressionSyntax? Remarks { get; }
-    public ExpressionSyntax? EndpointName { get; }
+    //public ExpressionSyntax? EndpointName { get; }
     public ImmutableArray<ParameterMetadata> Parameters { get; }
     public ImmutableDictionary<LiteralExpressionSyntax, ImmutableArray<IdentifierNameSyntax>> EndPoints { get; }
-    public ExpressionSyntax? GroupName { get; }
-    public ImmutableArray<ExpressionSyntax>? Tags { get; }
-    public ImmutableArray<ExpressionSyntax>? Hosts { get; }
-    public ImmutableArray<AuthorizeData> Authorize { get; }
-    public bool? ValidateAntiForgeryToken { get; }
-    public bool? IgnoreAntiforgeryToken { get; }
-    public bool? ExcludeFromDescription { get; }
-    public bool? AllowAnonymous { get; }
-    public bool? DisableHttpMetrics { get; }
+    //public ExpressionSyntax? GroupName { get; }
+    //public ImmutableArray<ExpressionSyntax>? Tags { get; }
+    //public ImmutableArray<ExpressionSyntax>? Hosts { get; }
+    //public ImmutableArray<AuthorizeData> Authorize { get; }
+    //public bool? ValidateAntiForgeryToken { get; }
+    //public bool? IgnoreAntiforgeryToken { get; }
+    //public bool? ExcludeFromDescription { get; }
+    //public bool? AllowAnonymous { get; }
+    //public bool? DisableHttpMetrics { get; }
     public bool? Obsolete { get; }
     public List<AttributeData> OtherMetadata { get; } = [];
 
@@ -63,20 +63,20 @@ internal sealed class EndpointsMetadata
             Summary = Literal(summary).AsString();
         if (action.Remarks is { Length: not 0 } remarks && !string.IsNullOrWhiteSpace(remarks))
             Remarks = Literal(remarks).AsString();
-        EndpointName = action.EndpointName;
+        //EndpointName = action.EndpointName;
         Parameters = action.Parameters;
         EndPoints = action.EndPoints.ToImmutableDictionary(
             i => Literal(CombineTemplate(controller.Template, i.Key, formatter)).AsString(),
             i => i.Value.Select(IdentifierName).ToImmutableArray());
-        GroupName = action.Group ?? controller.Group;
-        Tags = action.Tags ?? controller.Tags;
-        Hosts = action.Hosts ?? controller.Hosts;
-        Authorize = [.. action.Authorize ?? controller.Authorize];
-        ValidateAntiForgeryToken = action.ValidateAntiForgeryToken ?? controller.ValidateAntiForgeryToken;
-        IgnoreAntiforgeryToken = action.IgnoreAntiforgeryToken ?? controller.IgnoreAntiforgeryToken;
-        ExcludeFromDescription = action.Hidden ?? controller.Hidden;
-        AllowAnonymous = action.AllowAnonymous ?? controller.AllowAnonymous;
-        DisableHttpMetrics = action.DisableHttpMetrics ?? controller.DisableHttpMetrics;
+        //GroupName = action.Group ?? controller.Group;
+        //Tags = action.Tags ?? controller.Tags;
+        //Hosts = action.Hosts ?? controller.Hosts;
+        //Authorize = [.. action.Authorize ?? controller.Authorize];
+        //ValidateAntiForgeryToken = action.ValidateAntiForgeryToken ?? controller.ValidateAntiForgeryToken;
+        //IgnoreAntiforgeryToken = action.IgnoreAntiforgeryToken ?? controller.IgnoreAntiforgeryToken;
+        //ExcludeFromDescription = action.Hidden ?? controller.Hidden;
+        //AllowAnonymous = action.AllowAnonymous ?? controller.AllowAnonymous;
+        //DisableHttpMetrics = action.DisableHttpMetrics ?? controller.DisableHttpMetrics;
         Obsolete = action.Obsolete ?? controller.Obsolete;
 
         OtherMetadata = [.. action.OtherMetadata.Concat(controller.OtherMetadata).Distinct()];

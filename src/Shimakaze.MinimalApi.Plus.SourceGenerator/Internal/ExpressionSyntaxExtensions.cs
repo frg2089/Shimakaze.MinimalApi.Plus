@@ -149,44 +149,24 @@ internal static class ExpressionSyntaxExtensions
         /// <summary>
         /// 辅助方法：将 TypedConstant (来自 AttributeData) 转换为 ExpressionSyntax
         /// </summary>
-        public ExpressionSyntax CreateExpressionFromTypedConstant()
+        public ExpressionSyntax CreateExpressionFromTypedConstant() => constant switch
         {
-            if (constant.IsNull)
-                return LiteralExpression(SyntaxKind.NullLiteralExpression);
-
-            switch (constant.Kind)
-            {
-                case TypedConstantKind.Primitive:
-                case TypedConstantKind.Enum:
-                    // 枚举通常作为 Primitive 处理，但为了安全显式处理
-                    // 如果 constant.Value 是 int/long 等，直接转字面量即可，编译器会推断枚举类型
-                    // 如果需要显式_cast_，逻辑会更复杂，通常直接输出值即可
-                    return CreateLiteralExpression(constant.Value);
-
-                case TypedConstantKind.Type when constant.Value is ITypeSymbol typeSymbol:
-                    // 对应 typeof(T)
-                    return TypeOfExpression(ParseTypeName(typeSymbol.ToDisplayString()));
-                case TypedConstantKind.Type:
-                    throw new InvalidOperationException("Invalid type in TypedConstant.");
-
-                case TypedConstantKind.Array:
-                    // 处理数组初始化 new[] { ... }
-                    var elements = constant.Values.Select(v => v.CreateExpressionFromTypedConstant());
-
-                    // 尝试推断数组元素类型以生成 new type[] { ... } 或 new[] { ... }
-                    // 简单起见，这里生成 new[] { ... } (隐式类型数组)，或者你可以解析 constant.Type
-                    TypeSyntax arrayType = ParseTypeName(constant.Type?.ToDisplayString() ?? "var");
-
-                    return ArrayCreationExpression(
-                        ArrayType(arrayType)
-                            .AddRankSpecifiers(ArrayRankSpecifier()), // 空秩表示隐式大小
-                        InitializerExpression(SyntaxKind.ArrayInitializerExpression, elements.AsSeparatedList())
-                    );
-
-                default:
-                    throw new NotSupportedException($"Unsupported TypedConstant kind: {constant.Kind}");
-            }
-        }
+            { IsNull: true } => LiteralExpression(SyntaxKind.NullLiteralExpression),
+            // 枚举通常作为 Primitive 处理，但为了安全显式处理
+            // 如果 constant.Value 是 int/long 等，直接转字面量即可，编译器会推断枚举类型
+            // 如果需要显式_cast_，逻辑会更复杂，通常直接输出值即可
+            { Kind: TypedConstantKind.Primitive or TypedConstantKind.Enum } => CreateLiteralExpression(constant.Value),
+            // 对应 typeof(T)
+            { Kind: TypedConstantKind.Type } when constant.Value is ITypeSymbol typeSymbol => TypeOfExpression(ParseTypeName(typeSymbol.ToDisplayString())),
+            { Kind: TypedConstantKind.Type } => throw new InvalidOperationException("Invalid type in TypedConstant."),
+            { Kind: TypedConstantKind.Array } when constant.Type.IsGenericType(out var arrayType) => ArrayCreationExpression(
+                ArrayType(ParseTypeName(arrayType.TypeParameters[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))),
+                InitializerExpression(
+                    SyntaxKind.ArrayInitializerExpression,
+                    constant.Values.Select(v => v.CreateExpressionFromTypedConstant()).AsSeparatedList())
+            ),
+            _ => throw new NotSupportedException($"Unsupported TypedConstant kind: {constant.Kind}"),
+        };
     }
 
     extension(object? value)
