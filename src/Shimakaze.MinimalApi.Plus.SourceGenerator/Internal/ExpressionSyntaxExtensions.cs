@@ -157,17 +157,27 @@ internal static class ExpressionSyntaxExtensions
             // 如果需要显式_cast_，逻辑会更复杂，通常直接输出值即可
             { Kind: TypedConstantKind.Primitive or TypedConstantKind.Enum } => CreateLiteralExpression(constant.Value),
             // 对应 typeof(T)
-            { Kind: TypedConstantKind.Type } when constant.Value is ITypeSymbol typeSymbol => TypeOfExpression(ParseTypeName(typeSymbol.ToDisplayString())),
+            { Kind: TypedConstantKind.Type } when constant.Value is ITypeSymbol typeSymbol => TypeOfExpression(ParseTypeName(typeSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))),
             { Kind: TypedConstantKind.Type } => throw new InvalidOperationException("Invalid type in TypedConstant."),
-            { Kind: TypedConstantKind.Array } when constant.Type.IsGenericType(out var arrayType) => ArrayCreationExpression(
-                ArrayType(ParseTypeName(arrayType.TypeParameters[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat))),
+            { Kind: TypedConstantKind.Array, Type: IArrayTypeSymbol arrayType } => constant.CreateArray(arrayType),
+            _ => throw new NotSupportedException($"Unsupported TypedConstant kind: {constant.Kind}"),
+        };
+
+        private ArrayCreationExpressionSyntax CreateArray(IArrayTypeSymbol arrayType)
+        {
+            var type = ParseTypeName(arrayType.ElementType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat));
+            if (arrayType.ElementNullableAnnotation is NullableAnnotation.Annotated)
+                type = type.Nullable();
+
+            return ArrayCreationExpression(
+                ArrayType(type, SingletonList(ArrayRankSpecifier())),
                 InitializerExpression(
                     SyntaxKind.ArrayInitializerExpression,
                     constant.Values.Select(v => v.CreateExpressionFromTypedConstant()).AsSeparatedList())
-            ),
-            _ => throw new NotSupportedException($"Unsupported TypedConstant kind: {constant.Kind}"),
-        };
+            );
+        }
     }
+
 
     extension(object? value)
     {

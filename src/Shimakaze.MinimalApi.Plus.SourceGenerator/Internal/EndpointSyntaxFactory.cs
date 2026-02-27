@@ -252,14 +252,15 @@ internal static class EndpointSyntaxFactory
                                             Argument(CancellationTokenInstance),
                                         ])
                                    .Await();
-                                schema = OpenApiOperationTransformerContextInstance
-                                    .GetMember(Constants.Document)
-                                    .InvokeMethod(
-                                        AddComponent,
-                                        [
+                                schema = ConditionalAccessExpression(
+                                    OpenApiOperationTransformerContextInstance
+                                        .GetMember(Document),
+                                    InvocationExpression(
+                                        MemberBindingExpression(AddComponent),
+                                        ArgumentList([
                                             Argument(schemaId),
                                             Argument(schema),
-                                        ]);
+                                        ])));
                                 statements.Add(schema.AsStatement());
 
                                 if (parameter.Description is not null)
