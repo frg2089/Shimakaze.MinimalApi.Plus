@@ -332,17 +332,17 @@ internal static class EndpointSyntaxFactory
                             if (parameter.IsFromHeader)
                             {
                                 expressions.Add(In.Assignment(ParameterLocation.GetMember(Header)));
-                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Simple)));
+                                expressions.Add(Style.Assignment(ParameterStyle.GetMember(Simple)));
                             }
                             if (parameter.IsFromRoute)
                             {
                                 expressions.Add(In.Assignment(ParameterLocation.GetMember(Constants.Path)));
-                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Simple)));
+                                expressions.Add(Style.Assignment(ParameterStyle.GetMember(Simple)));
                             }
                             if (parameter.IsFromQuery)
                             {
                                 expressions.Add(In.Assignment(ParameterLocation.GetMember(Query)));
-                                expressions.Add(In.Assignment(ParameterStyle.GetMember(Form)));
+                                expressions.Add(Style.Assignment(ParameterStyle.GetMember(Form)));
                                 if (parameter.IsCollection)
                                     expressions.Add(Explode.Assignment(True));
                             }
