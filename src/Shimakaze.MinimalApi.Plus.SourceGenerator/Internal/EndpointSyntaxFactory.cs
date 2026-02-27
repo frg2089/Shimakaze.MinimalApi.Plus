@@ -349,6 +349,7 @@ internal static class EndpointSyntaxFactory
 
                             statements.Add(
                                 OpenApiOperationInstance
+                                    .GetMember(Parameters)
                                     .InvokeMethod(
                                         Add,
                                         Argument(
